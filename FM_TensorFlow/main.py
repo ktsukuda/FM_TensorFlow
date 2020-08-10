@@ -3,6 +3,7 @@ import math
 from progressbar import ProgressBar
 import configparser
 import numpy as np
+from sklearn.metrics import mean_squared_error
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 
@@ -25,7 +26,9 @@ def train(result_dir, model, train_data, validation_data, batch_size, config):
                 start += batch_size
                 total_loss += loss
                 pb.update(start // batch_size)
-            print('\n[Epoch {}] Loss = {:.2f}'.format(epoch, total_loss))
+            rmse = evaluate(model, sess, validation_data)
+            epoch_data.append({'epoch': epoch, 'loss': total_loss, 'RMSE': rmse})
+            print('\n[Epoch {}] Loss = {:.2f}, RMSE = {:.4f}'.format(epoch, total_loss, rmse))
     return epoch_data
 
 
@@ -34,6 +37,15 @@ def get_feed_dict(model, train_data, start, end):
     feed_dict[model.feature_ids] = list(train_data[start:end, 1])
     feed_dict[model.label] = list(train_data[start:end, 0])
     return feed_dict
+
+
+def evaluate(model, sess, evaluation_data):
+    feed_dict = {model.feature_ids: list(evaluation_data[:, 1]), model.label: list(evaluation_data[:, 0])}
+    predictions = np.reshape(model.predict(sess, feed_dict), (len(evaluation_data),))
+    labels = np.reshape(list(evaluation_data[:, 0]), (len(evaluation_data),))
+    predictions = np.maximum(predictions, [-1] * len(evaluation_data))
+    predictions = np.minimum(predictions, [1] * len(evaluation_data))
+    return math.sqrt(mean_squared_error(labels, predictions))
 
 
 def main():

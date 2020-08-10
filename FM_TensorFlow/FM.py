@@ -68,3 +68,6 @@ class FM:
 
     def train(self, sess, feed_dict):
         return sess.run([self.optimizer, self.loss], feed_dict)
+
+    def predict(self, sess, feed_dict):
+        return self.pred.eval(feed_dict=feed_dict, session=sess)
