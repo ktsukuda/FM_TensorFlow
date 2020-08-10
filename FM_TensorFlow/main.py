@@ -1,5 +1,6 @@
 import os
 import math
+import json
 from progressbar import ProgressBar
 import configparser
 import numpy as np
@@ -28,6 +29,8 @@ def train(result_dir, model, train_data, validation_data, batch_size, config):
                 pb.update(start // batch_size)
             rmse = evaluate(model, sess, validation_data)
             epoch_data.append({'epoch': epoch, 'loss': total_loss, 'RMSE': rmse})
+            if rmse < best_rmse:
+                tf.train.Saver().save(sess, os.path.join(result_dir, 'model'))
             print('\n[Epoch {}] Loss = {:.2f}, RMSE = {:.4f}'.format(epoch, total_loss, rmse))
     return epoch_data
 
@@ -46,6 +49,11 @@ def evaluate(model, sess, evaluation_data):
     predictions = np.maximum(predictions, [-1] * len(evaluation_data))
     predictions = np.minimum(predictions, [1] * len(evaluation_data))
     return math.sqrt(mean_squared_error(labels, predictions))
+
+
+def save_train_result(result_dir, epoch_data):
+    with open(os.path.join(result_dir, 'epoch_data.json'), 'w') as f:
+        json.dump(epoch_data, f, indent=4)
 
 
 def main():
@@ -69,6 +77,7 @@ def main():
                     tf.reset_default_graph()
                     model = FM(data_splitter.n_feature, lr, l2_weight, latent_dim)
                     epoch_data = train(result_dir, model, train_data, validation_data, batch_size, config)
+                    save_train_result(result_dir, epoch_data)
 
 
 if __name__ == "__main__":
