@@ -56,6 +56,28 @@ def save_train_result(result_dir, epoch_data):
         json.dump(epoch_data, f, indent=4)
 
 
+def find_best_model(config, n_feature):
+    best_model = None
+    best_model_dir = None
+    best_params = {}
+    best_rmse = 100
+    for batch_size in map(int, config['MODEL']['batch_size'].split()):
+        for lr in map(float, config['MODEL']['lr'].split()):
+            for l2_weight in map(float, config['MODEL']['l2_weight'].split()):
+                for latent_dim in map(int, config['MODEL']['latent_dim'].split()):
+                    result_dir = "data/train_result/batch_size_{}-lr_{}-l2_weight_{}-latent_dim_{}-epoch_{}".format(
+                        batch_size, lr, l2_weight, latent_dim, config['MODEL']['epoch'])
+                    with open(os.path.join(result_dir, 'epoch_data.json')) as f:
+                        rmse = min([d['RMSE'] for d in json.load(f)])
+                        if rmse < best_rmse:
+                            best_rmse = rmse
+                            best_params = {'batch_size': batch_size, 'lr': lr, 'l2_weight': l2_weight, 'latent_dim': latent_dim}
+                            tf.reset_default_graph()
+                            best_model = FM(n_feature, lr, l2_weight, latent_dim)
+                            best_model_dir = result_dir
+    return best_model, best_model_dir, best_params
+
+
 def main():
     config = configparser.ConfigParser()
     config.read('FM_TensorFlow/config.ini')
@@ -78,6 +100,15 @@ def main():
                     model = FM(data_splitter.n_feature, lr, l2_weight, latent_dim)
                     epoch_data = train(result_dir, model, train_data, validation_data, batch_size, config)
                     save_train_result(result_dir, epoch_data)
+
+    best_model, best_model_dir, best_params = find_best_model(config, data_splitter.n_feature)
+    with tf.Session() as sess:
+        tf.train.Saver().restore(sess, os.path.join(best_model_dir, 'model'))
+        rmse = evaluate(best_model, sess, test_data)
+        print('---------------------------------\nBest result')
+        print('batch_size = {}, lr = {}, l2_weight = {}, latent_dim = {}'.format(
+            best_params['batch_size'], best_params['lr'], best_params['l2_weight'], best_params['latent_dim']))
+        print('RMSE = {:.4f}'.format(rmse))
 
 
 if __name__ == "__main__":
